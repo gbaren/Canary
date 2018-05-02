@@ -11,11 +11,7 @@
 
 #define clrbit(reg,bit)	((reg) &= ~(1 << (bit)))
 #define setbit(reg,bit)	((reg) |=  (1 << (bit)))
-
-unsigned char readbit(unsigned char reg, unsigned char bit) {
-	reg = (reg & (1 << (bit))) >> bit;
-	return reg;
-}
+#define readbit(reg,bit) ((reg & (1 << (bit))) >> (bit))
 
 // The solid-state relay controlling the Power/Reset switch is on PB3 and is active-low
 #define mobo_reset_on()		(clrbit(PORTB,PB3))
