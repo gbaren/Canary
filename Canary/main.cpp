@@ -8,7 +8,6 @@
 
 #define F_CPU 1000000UL
 
-
 #include <avr/io.h>
 #include <avr/sleep.h>
 #include <avr/interrupt.h>
@@ -37,7 +36,7 @@ ISR(WDT_vect) {
 }
 
 
-// the idletime input is on DIP switches #1-3, is logically inverted, and rolled.
+// the idle time input is on DIP switches #1-3, is logically inverted, and rolled.
 unsigned char idletime_input() {
 	unsigned char out;
 	out = ~PINB & 0b00000111;
@@ -51,6 +50,20 @@ void delay_ms(unsigned long ms)
 		_delay_ms(1);
 }
 
+
+void setup_wdt() {
+	//set watchdog timeout to 8 seconds (max on ATtiny)
+	//datasheet 8.5.2
+	WDTCR =
+		(1 << WDIF)			//watchdog timeout interrupt flag
+		+ (1 << WDIE)		//watchdog timeout interrupt enable
+		+ (0 << WDCE)		//watchdog change enable
+		+ (1 << WDE)		//watchdog enable
+		+ (1 << WDP3)		//
+		+ (0 << WDP2)		//watchdog timer prescale - WDP3:WDP0
+		+ (0 << WDP1)		// 0000=16ms, 0001=32ms, 0010=64ms, 0011=0.125s, 0100=0.25s, 
+		+ (1 << WDP0);		// 0101=0.5s, 0110=1s, 0111=2s, 1000=4s, 1001=8s
+}
 
 int main(void)
 {
@@ -67,6 +80,8 @@ int main(void)
 	
 	DDRB =  0b00001000;		// set all ports as input except for PB3
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
+	
+	setup_wdt();
 
 	// we don't want to interrupt on a pin change, only check the PCIF when we
 	// come out of sleep from a watchdog timeout
