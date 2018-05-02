@@ -13,18 +13,9 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
+#include "canary.h"
 
-#define clrbit(reg,bit)	((reg) &= ~(1 << (bit)))
-#define setbit(reg,bit)	((reg) |=  (1 << (bit)))
-#define isbit(reg,bit) ((reg) & (1 << (bit)))
-
-
-// The solid-state relay controlling the Power/Reset switch is on PB3 and is active-low
-#define mobo_reset_on()		(clrbit(PORTB,PB3))
-#define mobo_reset_off()	(setbit(PORTB,PB3))
-
-
-bool hd_led_changed = true;
+bool volatile hd_led_changed = true;
 
 
 ISR(PCINT0_vect) {
@@ -36,18 +27,29 @@ ISR(WDT_vect) {
 }
 
 
+void delay_ms(unsigned long ms)
+{
+	while(ms--)
+	_delay_ms(1);
+}
+
+
+void tester_flash(int times) {
+	
+	for(int i=0; i<times; i++) {
+		mobo_reset_on();
+		delay_ms(FLASH_DELAY_MS);
+		mobo_reset_off();
+		delay_ms(FLASH_DELAY_MS);
+	}
+}
+
+
 // the idle time input is on DIP switches #1-3, is logically inverted, and rolled.
 unsigned char idletime_input() {
 	unsigned char out;
 	out = ~PINB & 0b00000111;
 	return ((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0);
-}
-
-
-void delay_ms(unsigned long ms)
-{
-	while(ms--)
-		_delay_ms(1);
 }
 
 
@@ -64,6 +66,7 @@ void setup_wdt() {
 		+ (0 << WDP1)		// 0000=16ms, 0001=32ms, 0010=64ms, 0011=0.125s, 0100=0.25s, 
 		+ (1 << WDP0);		// 0101=0.5s, 0110=1s, 0111=2s, 1000=4s, 1001=8s
 }
+
 
 int main(void)
 {
@@ -97,9 +100,13 @@ int main(void)
 		//if(PINB & (1 << PB4)) {
 		if (hd_led_changed) {
 			hd_led_changed = false;
-			mobo_reset_on();
-			delay_ms(200);
-			mobo_reset_off();
+			unsigned char volatile rst_pin = readbit(PORTB,PB3);
+
+			if (rst_pin) {
+				mobo_reset_on();
+			} else {
+				mobo_reset_off();
+			}
 		}
     }
 }
