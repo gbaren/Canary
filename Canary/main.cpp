@@ -100,7 +100,7 @@ int main(void)
 		//if(PINB & (1 << PB4)) {
 		if (hd_led_changed) {
 			hd_led_changed = false;
-			tester_flash(2);
+			tester_flash(3);
 		}
     }
 }
