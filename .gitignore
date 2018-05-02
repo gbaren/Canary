@@ -1,5 +1,8 @@
 # git ignore file
+
 *.elf
+*.hex
 *.lss
 *.map
+*.srec
 *.o

@@ -100,13 +100,7 @@ int main(void)
 		//if(PINB & (1 << PB4)) {
 		if (hd_led_changed) {
 			hd_led_changed = false;
-			unsigned char volatile rst_pin = readbit(PORTB,PB3);
-
-			if (rst_pin) {
-				mobo_reset_on();
-			} else {
-				mobo_reset_off();
-			}
+			tester_flash(2);
 		}
     }
 }
