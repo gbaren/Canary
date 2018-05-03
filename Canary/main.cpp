@@ -11,20 +11,14 @@
 #include <avr/io.h>
 #include <avr/sleep.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 
 #include "canary.h"
 
 bool volatile hd_led_changed = true;
-
-
-ISR(PCINT0_vect) {
-	hd_led_changed = true;
-}
-
-ISR(WDT_vect) {
-	
-}
+unsigned int prescaler_freq_ms;
+unsigned int configured_delay;
 
 
 void delay_ms(unsigned long ms)
@@ -45,11 +39,20 @@ void tester_flash(int times) {
 }
 
 
+ISR(PCINT0_vect) {
+	hd_led_changed = true;
+}
+
+ISR(WDT_vect) {
+	tester_flash(3);
+}
+
+
 // the idle time input is on DIP switches #1-3, is logically inverted, and rolled.
 unsigned char idletime_input() {
 	unsigned char out;
 	out = ~PINB & 0b00000111;
-	return ((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0);
+	return ((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0) + 1;
 }
 
 
@@ -61,10 +64,12 @@ void setup_wdt() {
 		+ (1 << WDIE)		//watchdog timeout interrupt enable
 		+ (0 << WDCE)		//watchdog change enable
 		+ (1 << WDE)		//watchdog enable
-		+ (1 << WDP3)		//
-		+ (0 << WDP2)		//watchdog timer prescale - WDP3:WDP0
-		+ (0 << WDP1)		// 0000=16ms, 0001=32ms, 0010=64ms, 0011=0.125s, 0100=0.25s, 
+		+ (0 << WDP3)		//
+		+ (1 << WDP2)		//watchdog timer prescale - WDP3:WDP0
+		+ (1 << WDP1)		// 0000=16ms, 0001=32ms, 0010=64ms, 0011=0.125s, 0100=0.25s, 
 		+ (1 << WDP0);		// 0101=0.5s, 0110=1s, 0111=2s, 1000=4s, 1001=8s
+		
+	prescaler_freq_ms = 2000;
 }
 
 
@@ -84,23 +89,20 @@ int main(void)
 	DDRB =  0b00001000;		// set all ports as input except for PB3
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
 	
+	configured_delay = idletime_input();
+	
 	setup_wdt();
 
 	// we don't want to interrupt on a pin change, only check the PCIF when we
 	// come out of sleep from a watchdog timeout
-	setbit(GIMSK, PCIE);	// enable pin change interrupts
+	//setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
 	sei();					// enable interrupts
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_enable();
 	
-
     while (1) 
     {
-		delay_ms(200);
-		
-		//if(PINB & (1 << PB4)) {
-		if (hd_led_changed) {
-			hd_led_changed = false;
-			tester_flash(3);
-		}
-    }
+		sleep_cpu();
+	}
 }
