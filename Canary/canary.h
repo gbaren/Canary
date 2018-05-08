@@ -33,8 +33,8 @@
 #define POWER_CYCLE_RELEASE_MS	5000
 #define POWER_CYCLE_ON_MS		1000
 
-#define FLASH_DELAY_MS		200
-
+#define FLASH_DELAY_LONG_MS		500
+#define FLASH_DELAY_SHORT_MS	200
 
 
 #endif /* CANARY_H_ */
