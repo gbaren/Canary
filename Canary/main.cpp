@@ -35,6 +35,13 @@ void tester_flash(int times) {
 }
 
 
+bool is_led_changed() {
+	volatile bool is_changed = readbit(GIFR,PCIF);
+	setbit(GIFR,PCIF);
+	return is_changed;
+}
+
+
 ISR(PCINT0_vect) {
 	hd_led_changed = true;
 }
@@ -121,8 +128,7 @@ int main(void)
     while (1) 
     {
 		main_loop_counter++;
-		if (hd_led_changed) {
-			hd_led_changed = false;
+		if (is_led_changed()) {
 			wdt_counter = 0;
 			tester_flash(1);
 		} else if (configured_delay < wdt_counter) {
