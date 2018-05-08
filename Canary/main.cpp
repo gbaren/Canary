@@ -114,6 +114,13 @@ unsigned int setup_wdtcr() {
 
 }
 
+void go_to_sleep() {
+	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
+	setbit(MCUCR,SE);				// sleep enable bit
+	sleep_cpu();					// sleep
+	clrbit(MCUCR,SE);				// sleep disable
+}
+
 
 int main(void)
 {
@@ -147,6 +154,7 @@ int main(void)
 	
     while (1) 
     {
+		go_to_sleep();
 		main_loop_counter++;
 		if (is_led_changed()) {
 			wdt_counter = 0;
