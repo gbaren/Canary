@@ -117,6 +117,7 @@ unsigned int setup_wdtcr() {
 void go_to_sleep() {
 	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
 	setbit(MCUCR,SE);				// sleep enable bit
+	sei();							// enable interrupts
 	sleep_cpu();					// sleep
 	clrbit(MCUCR,SE);				// sleep disable
 }
@@ -137,6 +138,8 @@ int main(void)
 	
 	DDRB =  0b00001000;		// set all ports as input except for PB3
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
+
+	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 	
 	prescaler_freq_ms = setup_wdtcr();
 
@@ -146,11 +149,6 @@ int main(void)
 	// come out of sleep from a watchdog timeout
 	//setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
-	
-	//set_sleep_mode(0);
-	//sleep_enable();
-	
-	sei();					// enable interrupts
 	
     while (1) 
     {
