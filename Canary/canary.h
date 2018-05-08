@@ -29,6 +29,10 @@
 #define WDT_TIMEOUT_4S		bitval(WDP3)
 #define WDT_TIMEOUT_8S		bitval(WDP3) | bitval(WDP0)
 
+#define POWER_CYCLE_HOLD_MS		5000
+#define POWER_CYCLE_RELEASE_MS	5000
+#define POWER_CYCLE_ON_MS		1000
+
 #define FLASH_DELAY_MS		200
 
 

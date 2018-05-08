@@ -1,4 +1,5 @@
 ﻿//#define SIM 
+//#define TESTER
 
 #define F_CPU 1000000UL
 
@@ -64,7 +65,9 @@ ISR(PCINT0_vect) {
 ISR(WDT_vect) {
 	wdt_counter++;
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
+#ifdef TESTER
 	tester_flash(1);
+#endif
 }
 
 
@@ -122,6 +125,16 @@ void go_to_sleep() {
 	clrbit(MCUCR,SE);				// sleep disable
 }
 
+void reset_mobo() {
+	mobo_reset_on();
+	delay_ms(POWER_CYCLE_HOLD_MS);
+	mobo_reset_off();
+	delay_ms(POWER_CYCLE_RELEASE_MS);
+	mobo_reset_on();
+	delay_ms(POWER_CYCLE_ON_MS);
+	mobo_reset_off();
+}
+
 
 int main(void)
 {
@@ -153,13 +166,17 @@ int main(void)
     while (1) 
     {
 		go_to_sleep();
+		cli();	// disable interrupts
+
 		main_loop_counter++;
 		if (is_led_changed()) {
-			wdt_counter = 0;
+#ifdef TESTER
 			tester_flash(1);
-		} else if (configured_delay < wdt_counter) {
+#endif
 			wdt_counter = 0;
-			tester_flash(2);
+		} else if (configured_delay < wdt_counter) {
+			reset_mobo();
+			wdt_counter = 0;
 		}
 	}
 }
