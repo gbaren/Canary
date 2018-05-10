@@ -46,14 +46,22 @@ void tester_flash(int times, int howlong) {
 
 
 bool is_led_changed() {
-#ifdef SIM
-	volatile bool is_changed = readbit(GIFR,PCIF);
-#else
-	bool is_changed = readbit(GIFR,PCIF);
-#endif
+	#ifdef SIM
+		volatile bool is_changed = readbit(GIFR,PCIF);
+	#else
+		bool is_changed = readbit(GIFR,PCIF);
+	#endif
 
-	if (is_changed) { setbit(GIFR,PCIF); }
+	setbit(GIFR,PCIF);
 	
+	#ifdef TESTER
+		if (is_changed) {
+			tester_flash(1,FLASH_DELAY_LONG_MS);
+		} else {
+			tester_flash(1,FLASH_DELAY_SHORT_MS);
+		}
+	#endif
+			
 	return is_changed;
 }
 
@@ -102,7 +110,7 @@ unsigned int setup_wdtcr() {
 		volatile unsigned char timeout;
 		prescaler_freq_ms = 32;
 		idle_multiplier = 5;
-		timeout = WDT_TIMEOUT_32MS
+		timeout = WDT_TIMEOUT_32MS;
 	#else
 		unsigned long prescaler_freq_ms;
 		unsigned char timeout;
@@ -167,17 +175,19 @@ int main(void)
     {
 		go_to_sleep();
 		
-#ifdef TESTER
-		tester_flash(1,FLASH_DELAY_SHORT_MS);
-#endif
+		#ifdef TESTER
+			tester_flash(1,FLASH_DELAY_SHORT_MS);
+		#endif
 
 		cli();	// disable interrupts
 
 		main_loop_counter++;
 		if (is_led_changed()) {
-#ifdef TESTER
+			
+		#ifdef TESTER
 			tester_flash(2,FLASH_DELAY_LONG_MS);
-#endif
+		#endif
+
 			wdt_counter = 0;
 		} else if (configured_delay < wdt_counter) {
 			reset_mobo();
