@@ -37,6 +37,7 @@ ISR(PCINT0_vect) {
 	tester_flash(1,FLASH_DELAY_SHORT_MS);
 }
 
+
 ISR(WDT_vect) {
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
 	tester_flash(1,FLASH_DELAY_LONG_MS);
@@ -48,6 +49,35 @@ ISR(WDT_vect) {
 	}
 }
 
+
+unsigned int setup_wdtcr() {
+	//set watchdog timeout to 8 seconds (max on ATtiny)
+	//datasheet 8.5.2
+	//
+	// WDIF - watchdog timeout interrupt flag
+	// WDIE - watchdog timeout interrupt enable
+	// WDCE - watchdog change enable
+	// WDE  - watchdog enable
+	// WDP3:WDP0 - timer prescaler oscillator cycles select
+	
+	#ifdef SIM
+		volatile unsigned long prescaler_freq_ms;
+		volatile unsigned char timeout;
+		prescaler_freq_ms = 32;
+		idle_multiplier = 5;
+		timeout = WDT_TIMEOUT_32MS;
+	#else
+		unsigned long prescaler_freq_ms;
+		unsigned char timeout;
+		prescaler_freq_ms = 8000;
+		idle_multiplier = 60000;
+		timeout = WDT_TIMEOUT_8S;
+	#endif
+
+	WDTCR |= bitval(WDE) | bitval(WDIE) | timeout;
+	
+	return prescaler_freq_ms;
+}
 
 void go_to_sleep() {
 	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
@@ -76,18 +106,18 @@ int main(void)
 
 	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 
-    // setup watchdog for 8sec timeout
-	WDTCR |= bitval(WDE) | bitval(WDIE) | WDT_TIMEOUT_8S;
+    setup_wdtcr();          // setup watchdog mechanism
 
-	// we don't want to interrupt on a pin change, only check the PCIF when we
-	// come out of sleep from a watchdog timeout
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
-	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
+	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4 (HD LED from mobo)
 
-	tester_flash(1,FLASH_DELAY_SHORT_MS);
+    #ifdef TESTER
+        tester_flash(1,FLASH_DELAY_SHORT_MS);
+    #endif
 	
     while (1) 
     {
 		go_to_sleep();
+		main_loop_counter++;
 	}
 }
