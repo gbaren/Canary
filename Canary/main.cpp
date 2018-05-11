@@ -49,12 +49,6 @@ ISR(WDT_vect) {
 }
 
 
-void setup_wdtcr() {
-	unsigned char timeout;
-	timeout = WDT_TIMEOUT_8S;
-	WDTCR |= bitval(WDE) | bitval(WDIE) | timeout;
-}
-
 void go_to_sleep() {
 	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
 	setbit(MCUCR,SE);				// sleep enable bit
@@ -81,8 +75,9 @@ int main(void)
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
 
 	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
-	
-	setup_wdtcr();
+
+    // setup watchdog for 8sec timeout
+	WDTCR |= bitval(WDE) | bitval(WDIE) | WDT_TIMEOUT_8S;
 
 	// we don't want to interrupt on a pin change, only check the PCIF when we
 	// come out of sleep from a watchdog timeout
