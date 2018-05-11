@@ -10,7 +10,11 @@
 #include "canary.h"
 
 
-bool hd_led_changed = true;
+// hd_led_changed will be true when we have detected a change in the
+// HD LED signal from the mobo since last time we have used that
+// information and reset it to false. The mobo is healthy when the
+// HD LED is changing. 
+bool hd_led_changed = false;
 
 
 void delay_ms(unsigned long ms)
