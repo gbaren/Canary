@@ -34,16 +34,22 @@ void tester_flash(int times, int howlong) {
 ISR(PCINT0_vect) {
 	clrbit(PCMSK, PCINT4);
 	hd_led_changed = true;
-	tester_flash(1,FLASH_DELAY_SHORT_MS);
+    #ifdef TESTER
+        tester_flash(1,FLASH_DELAY_SHORT_MS);
+    #endif
 }
 
 
 ISR(WDT_vect) {
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
-	tester_flash(1,FLASH_DELAY_LONG_MS);
+    #ifdef TESTER
+        tester_flash(1,FLASH_DELAY_LONG_MS);
+    #endif
 	if (hd_led_changed) {
-		tester_flash(1,FLASH_DELAY_SHORT_MS);
-		tester_flash(1,FLASH_DELAY_SHORT_MS);
+        #ifdef TESTER
+            tester_flash(1,FLASH_DELAY_SHORT_MS);
+            tester_flash(1,FLASH_DELAY_SHORT_MS);
+        #endif
 		hd_led_changed = false;
 		setbit(PCMSK, PCINT4);
 	}
