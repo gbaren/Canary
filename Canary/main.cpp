@@ -1,5 +1,5 @@
 ﻿//#define SIM 
-#define TESTER
+//#define TESTER
 
 #define F_CPU 1000000UL
 
@@ -17,7 +17,7 @@
 	volatile float configured_delay;				// delay from switches scaled appropriately
 	volatile unsigned long wdt_counter = 0;			// counts number of times WDT got hit
 	volatile unsigned long main_loop_counter = 0;	// counts main loop iterations for testing
-	volatile unsigned int idle_multiplier = 60000;  // minutes for board shorter for sim
+	volatile unsigned int idle_multiplier = 60000;  // minutes
 #else
 	bool hd_led_changed = true;
 	float prescaler_freq_ms;
@@ -67,15 +67,30 @@ bool is_led_changed() {
 
 
 ISR(PCINT0_vect) {
+	clrbit(PCMSK, PCINT4);
 	hd_led_changed = true;
+	#ifdef TESTER
+		tester_flash(1,FLASH_DELAY_SHORT_MS);
+	#endif
 }
 
 ISR(WDT_vect) {
-	wdt_counter++;
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
-#ifdef TESTER
-	tester_flash(1,FLASH_DELAY_LONG_MS);
-#endif
+
+	#ifdef TESTER
+		tester_flash(1,FLASH_DELAY_LONG_MS);
+	#endif
+
+	wdt_counter++;
+
+	if (hd_led_changed) {
+		hd_led_changed = false;
+		wdt_counter = 0;
+		setbit(PCMSK, PCINT4);
+		#ifdef TESTER
+			tester_flash(1,FLASH_DELAY_SHORT_MS);
+		#endif
+	}
 }
 
 
@@ -109,13 +124,11 @@ unsigned int setup_wdtcr() {
 		volatile unsigned long prescaler_freq_ms;
 		volatile unsigned char timeout;
 		prescaler_freq_ms = 32;
-		idle_multiplier = 5;
 		timeout = WDT_TIMEOUT_32MS;
 	#else
 		unsigned long prescaler_freq_ms;
 		unsigned char timeout;
 		prescaler_freq_ms = 8000;
-		idle_multiplier = 60000;
 		timeout = WDT_TIMEOUT_8S;
 	#endif
 
@@ -160,36 +173,27 @@ int main(void)
 	DDRB =  0b00001000;		// set all ports as input except for PB3
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
 
-	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
-	
 	prescaler_freq_ms = setup_wdtcr();
-
-	configured_delay = (idletime_input() * idle_multiplier) / prescaler_freq_ms;
 	
-	// we don't want to interrupt on a pin change, only check the PCIF when we
-	// come out of sleep from a watchdog timeout
-	//setbit(GIMSK, PCIE);	// enable pin change interrupts
+	#ifdef SIM
+		volatile unsigned char idle_input = idletime_input();
+	#else 
+		unsigned char idle_input = idletime_input();
+	#endif
+	
+	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
+	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
 	
     while (1) 
     {
+		idle_input = idletime_input(); // can change switches while device running
+		configured_delay = ((float)idle_input * (float)idle_multiplier) / prescaler_freq_ms;
+
 		go_to_sleep();
-		
-		#ifdef TESTER
-			tester_flash(1,FLASH_DELAY_SHORT_MS);
-		#endif
-
-		cli();	// disable interrupts
-
-		main_loop_counter++;
-		if (is_led_changed()) {
-			
-		#ifdef TESTER
-			tester_flash(2,FLASH_DELAY_LONG_MS);
-		#endif
-
-			wdt_counter = 0;
-		} else if (configured_delay < wdt_counter) {
+				
+		if (wdt_counter	> configured_delay) {
+			cli();
 			reset_mobo();
 			wdt_counter = 0;
 		}
