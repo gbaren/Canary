@@ -45,27 +45,6 @@ void tester_flash(int times, int howlong) {
 }
 
 
-bool is_led_changed() {
-	#ifdef SIM
-		volatile bool is_changed = readbit(GIFR,PCIF);
-	#else
-		bool is_changed = readbit(GIFR,PCIF);
-	#endif
-
-	setbit(GIFR,PCIF);
-	
-	#ifdef TESTER
-		if (is_changed) {
-			tester_flash(1,FLASH_DELAY_LONG_MS);
-		} else {
-			tester_flash(1,FLASH_DELAY_SHORT_MS);
-		}
-	#endif
-			
-	return is_changed;
-}
-
-
 ISR(PCINT0_vect) {
 	clrbit(PCMSK, PCINT4);
 	hd_led_changed = true;
@@ -96,11 +75,11 @@ ISR(WDT_vect) {
 
 // the idle time input is on DIP switches #1-3, is logically inverted, and rolled.
 unsigned char idletime_input() {
-#ifdef SIM
-	volatile unsigned char out;
-#else
-	unsigned char out;
-#endif
+	#ifdef SIM
+		volatile unsigned char out;
+	#else
+		unsigned char out;
+	#endif
 
 	out = ~PINB & 0b00000111;
 	return (((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0) + 1);
@@ -116,9 +95,6 @@ unsigned int setup_wdtcr() {
 	// WDCE - watchdog change enable
 	// WDE  - watchdog enable
 	// WDP3:WDP0 - timer prescaler oscillator cycles select
-	
-	//volatile unsigned char WDTCR_mask = bitval(WDIF) | bitval(WDCE);
-	//volatile unsigned char WDTCR_new = (WDTCR & WDTCR_mask) | (~WDTCR_mask | bitval(WDE) | bitval(WDIE));
 		
 	#ifdef SIM
 		volatile unsigned long prescaler_freq_ms;
