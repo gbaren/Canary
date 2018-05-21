@@ -11,7 +11,7 @@
 
 #define clrbit(reg,bit)	((reg) &= ~(1 << (bit)))
 #define setbit(reg,bit)	((reg) |=  (1 << (bit)))
-#define readbit(reg,bit) (((reg) & (1 << (bit))) >> (bit))
+#define readbit(reg,bit) ((reg) & (1 << (bit)))
 #define bitval(bit) (1 << (bit))
 
 // The solid-state relay controlling the Power/Reset switch is on PB3 and is active-low
