@@ -1,54 +1,135 @@
-﻿/*
- * canary.cpp
- *
- * Created: 4/20/2018 12:22:39 AM
- * Author : CDM
- */ 
-
+﻿//#define SIM 
+//#define TESTER
 
 #define F_CPU 1000000UL
-
 
 #include <avr/io.h>
 #include <avr/sleep.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 
+#include "canary.h"
 
-#define clrbit(reg,bit)	((reg) &= ~(1 << (bit)))
-#define setbit(reg,bit)	((reg) |=  (1 << (bit)))
-#define isbit(reg,bit) ((reg) & (1 << (bit)))
-
-
-// The solid-state relay controlling the Power/Reset switch is on PB3 and is active-low
-#define mobo_reset_on()		(clrbit(PORTB,PB3))
-#define mobo_reset_off()	(setbit(PORTB,PB3))
-
-
-bool hd_led_changed = true;
-
-
-ISR(PCINT0_vect) {
-	hd_led_changed = true;
-}
-
-ISR(WDT_vect) {
-	
-}
-
-
-// the idletime input is on DIP switches #1-3, is logically inverted, and rolled.
-unsigned char idletime_input() {
-	unsigned char out;
-	out = ~PINB & 0b00000111;
-	return ((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0);
-}
-
+#ifdef SIM
+	volatile bool hd_led_changed = true;			// LED changed flag
+	volatile float prescaler_freq_ms;				// prescaler configuration for WDT frequency in milliseconds
+	volatile float configured_delay;				// delay from switches scaled appropriately
+	volatile unsigned long wdt_counter = 0;			// counts number of times WDT got hit
+	volatile unsigned long main_loop_counter = 0;	// counts main loop iterations for testing
+	volatile unsigned int idle_multiplier = 60000;  // minutes
+#else
+	bool hd_led_changed = true;
+	float prescaler_freq_ms;
+	float configured_delay;
+	unsigned long wdt_counter = 0;
+	unsigned long main_loop_counter = 0;
+	unsigned int idle_multiplier = 60000;
+#endif
 
 void delay_ms(unsigned long ms)
 {
 	while(ms--)
-		_delay_ms(1);
+	_delay_ms(1);
+}
+
+
+void tester_flash(int times, int howlong) {
+	
+	for(int i=0; i<times; i++) {
+		mobo_reset_on();
+		delay_ms(howlong);
+		mobo_reset_off();
+		delay_ms(FLASH_DELAY_SHORT_MS);
+	}
+}
+
+
+ISR(PCINT0_vect) {
+	clrbit(PCMSK, PCINT4);
+	hd_led_changed = true;
+	#ifdef TESTER
+		tester_flash(1,FLASH_DELAY_SHORT_MS);
+	#endif
+}
+
+ISR(WDT_vect) {
+	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
+
+	#ifdef TESTER
+		tester_flash(1,FLASH_DELAY_LONG_MS);
+	#endif
+
+	wdt_counter++;
+
+	if (hd_led_changed) {
+		hd_led_changed = false;
+		wdt_counter = 0;
+		setbit(PCMSK, PCINT4);
+		#ifdef TESTER
+			tester_flash(1,FLASH_DELAY_SHORT_MS);
+		#endif
+	}
+}
+
+
+// the idle time input is on DIP switches #1-3, is logically inverted, and rolled.
+unsigned char idletime_input() {
+	#ifdef SIM
+		volatile unsigned char out;
+	#else
+		unsigned char out;
+	#endif
+
+	out = ~PINB & 0b00000111;
+	return (((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0) + 1);
+}
+
+
+unsigned int setup_wdtcr() {
+	//set watchdog timeout to 8 seconds (max on ATtiny)
+	//datasheet 8.5.2
+	//
+	// WDIF - watchdog timeout interrupt flag
+	// WDIE - watchdog timeout interrupt enable
+	// WDCE - watchdog change enable
+	// WDE  - watchdog enable
+	// WDP3:WDP0 - timer prescaler oscillator cycles select
+		
+	#ifdef SIM
+		volatile unsigned long prescaler_freq_ms;
+		volatile unsigned char timeout;
+		prescaler_freq_ms = 32;
+		timeout = WDT_TIMEOUT_32MS;
+	#else
+		unsigned long prescaler_freq_ms;
+		unsigned char timeout;
+		prescaler_freq_ms = 8000;
+		timeout = WDT_TIMEOUT_8S;
+	#endif
+
+	WDTCR |= bitval(WDE) | bitval(WDIE) | timeout;
+	
+	return prescaler_freq_ms;
+
+}
+
+void go_to_sleep() {
+	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
+	setbit(MCUCR,SE);				// sleep enable bit
+	sei();							// enable interrupts
+	sleep_cpu();					// sleep
+	clrbit(MCUCR,SE);				// sleep disable
+}
+
+void reset_mobo() {
+	mobo_reset_on();
+	delay_ms(POWER_CYCLE_HOLD_MS);
+	mobo_reset_off();
+	delay_ms(POWER_CYCLE_RELEASE_MS);
+	mobo_reset_on();
+	delay_ms(POWER_CYCLE_ON_MS);
+	mobo_reset_off();
 }
 
 
@@ -68,23 +149,29 @@ int main(void)
 	DDRB =  0b00001000;		// set all ports as input except for PB3
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
 
-	// we don't want to interrupt on a pin change, only check the PCIF when we
-	// come out of sleep from a watchdog timeout
+	prescaler_freq_ms = setup_wdtcr();
+	
+	#ifdef SIM
+		volatile unsigned char idle_input = idletime_input();
+	#else 
+		unsigned char idle_input = idletime_input();
+	#endif
+	
+	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
-	sei();					// enable interrupts
 	
-
     while (1) 
     {
-		delay_ms(200);
-		
-		//if(PINB & (1 << PB4)) {
-		if (hd_led_changed) {
-			hd_led_changed = false;
-			mobo_reset_on();
-			delay_ms(200);
-			mobo_reset_off();
+		idle_input = idletime_input(); // can change switches while device running
+		configured_delay = ((float)idle_input * (float)idle_multiplier) / prescaler_freq_ms;
+
+		go_to_sleep();
+				
+		if (wdt_counter	> configured_delay) {
+			cli();
+			reset_mobo();
+			wdt_counter = 0;
 		}
-    }
+	}
 }
