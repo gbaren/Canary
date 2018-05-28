@@ -18,6 +18,11 @@
 #define mobo_reset_on()		(clrbit(PORTB,PB3))
 #define mobo_reset_off()	(setbit(PORTB,PB3))
 
+#define led_off()			clrbit(PORTB,PB0);clrbit(PORTB,PB1)
+#define led_green_on()		(setbit(PORTB,PB0))
+#define led_red_on()		(setbit(PORTB,PB1))
+#define led_orange_on()		led_green_on();led_red_on()
+
 #define WDT_TIMEOUT_16MS	0
 #define WDT_TIMEOUT_32MS	(bitval(WDP0))
 #define WDT_TIMEOUT_64MS	(bitval(WDP1))
@@ -35,6 +40,10 @@
 
 #define FLASH_DELAY_LONG_MS		500
 #define FLASH_DELAY_SHORT_MS	200
+
+#define LED_GREEN	1
+#define LED_RED		2
+#define LED_ORANGE	3
 
 
 #endif /* CANARY_H_ */

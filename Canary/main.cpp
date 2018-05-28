@@ -1,5 +1,5 @@
-﻿//#define SIM 
-//#define TESTER
+﻿#define SIM 
+#define TESTER
 
 #define F_CPU 1000000UL
 
@@ -17,14 +17,14 @@
 	volatile float configured_delay;				// delay from switches scaled appropriately
 	volatile unsigned long wdt_counter = 0;			// counts number of times WDT got hit
 	volatile unsigned long main_loop_counter = 0;	// counts main loop iterations for testing
-	volatile unsigned int idle_multiplier = 60000;  // minutes
+	volatile float idle_multiplier = 300000;  // 5 minutes
 #else
 	bool hd_led_changed = true;
 	float prescaler_freq_ms;
 	float configured_delay;
 	unsigned long wdt_counter = 0;
 	unsigned long main_loop_counter = 0;
-	unsigned int idle_multiplier = 60000;
+	float idle_multiplier = 300000;
 #endif
 
 void delay_ms(unsigned long ms)
@@ -40,6 +40,26 @@ void tester_flash(int times, int howlong) {
 		mobo_reset_on();
 		delay_ms(howlong);
 		mobo_reset_off();
+		delay_ms(FLASH_DELAY_SHORT_MS);
+	}
+}
+
+void led_flash(int times, int howlong, int color) {
+	for(int i=0; i<times; i++) {
+		switch(color) {
+			case LED_GREEN :
+				led_green_on();
+				break;
+			case LED_RED :
+				led_red_on();
+				break;
+			case LED_ORANGE :
+				led_orange_on();
+				break;
+		}
+		
+		delay_ms(howlong);
+		led_off();
 		delay_ms(FLASH_DELAY_SHORT_MS);
 	}
 }
@@ -81,8 +101,9 @@ unsigned char idletime_input() {
 		unsigned char out;
 	#endif
 
-	out = ~PINB & 0b00000111;
-	return (((out & 1) ? 4:0) + (out & 2) + ((out & 4) ? 1:0) + 1);
+	//out = ~PINB & 0b00000100;
+	out = (readbit(PINB,PB2)) >> PB2;
+	return (!out + 1);
 }
 
 
@@ -135,18 +156,16 @@ void reset_mobo() {
 
 int main(void)
 {
-	// Pinout:
+	// Rev 2 Pinout:
 	//
 	// PB5 input	DIP switch #4, Reset output mode, Power SW (0) / Reset SW (1)
 	// PB4 input	HD LED from mobo
 	// PB3 output	Solid-state relay Q1, shorts Power/Reset SW on outputting 0
-	// PB2 input	DIP switch #3, DIP switches 1,2,3 bitmapped to idle LED time
-	//					1-8 minutes, time is (1 + DIP setting) in minutes
-	//					switch #1 is MSB
-	// PB1 input	DIP switch #2
-	// PB0 input	DIP switch #1
+	// PB2 input	DIP switch/jumper - select 5/10 minute
+	// PB1 output	LED red
+	// PB0 output	LED green
 	
-	DDRB =  0b00001000;		// set all ports as input except for PB3
+	DDRB =  0b00001011;		// set all ports as input except for PB3,PB1 and PB0
 	PORTB = 0b00101111;		// turn ports on for all inputs except PB4 (enabling pull-ups)
 
 	prescaler_freq_ms = setup_wdtcr();
@@ -161,10 +180,16 @@ int main(void)
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
 	
+	tester_flash(1,FLASH_DELAY_LONG_MS);
+	
+	led_flash(1,FLASH_DELAY_LONG_MS,LED_RED);
+	led_flash(1,FLASH_DELAY_LONG_MS,LED_ORANGE);
+	led_flash(1,FLASH_DELAY_LONG_MS,LED_GREEN);
+	
     while (1) 
     {
 		idle_input = idletime_input(); // can change switches while device running
-		configured_delay = ((float)idle_input * (float)idle_multiplier) / prescaler_freq_ms;
+		configured_delay = ((float)idle_input * idle_multiplier) / prescaler_freq_ms;
 
 		go_to_sleep();
 				
