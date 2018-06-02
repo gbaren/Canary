@@ -1,4 +1,4 @@
-﻿#define SIM 
+﻿//#define SIM 
 #define TESTER
 
 #define F_CPU 1000000UL
@@ -44,51 +44,61 @@ void tester_flash(int times, int howlong) {
 	}
 }
 
-void led_flash(int times, int howlong, int color) {
-	for(int i=0; i<times; i++) {
-		switch(color) {
+void led_off() {
+	clrbit(PORTB,PB0);
+	clrbit(PORTB,PB1);	
+}
+
+void led_flash(int color, int times, int delay) {
+	led_off();
+	for (int i=0; i<times; i++) {
+		switch (color) {
 			case LED_GREEN :
-				led_green_on();
+				setbit(PORTB,PB0);
 				break;
 			case LED_RED :
-				led_red_on();
+				setbit(PORTB,PB1);
 				break;
 			case LED_ORANGE :
-				led_orange_on();
-				break;
+				setbit(PORTB,PB0);
+				setbit(PORTB,PB1);
 		}
-		
-		delay_ms(howlong);
+		delay_ms(delay);
 		led_off();
 		delay_ms(FLASH_DELAY_SHORT_MS);
 	}
 }
 
+void led_sos() {
+	led_flash(LED_RED,3,FLASH_DELAY_SHORT_MS);
+	led_flash(LED_RED,3,FLASH_DELAY_LONG_MS);
+	led_flash(LED_RED,3,FLASH_DELAY_SHORT_MS);
+}
+
+void led_startup() {
+	led_flash(LED_RED,1,FLASH_DELAY_SHORT_MS);
+	led_flash(LED_ORANGE,1,FLASH_DELAY_SHORT_MS);
+	led_flash(LED_GREEN,1,FLASH_DELAY_SHORT_MS);
+}
 
 ISR(PCINT0_vect) {
-	clrbit(PCMSK, PCINT4);
+	//clrbit(PCMSK, PCINT4);
 	hd_led_changed = true;
-	#ifdef TESTER
-		tester_flash(1,FLASH_DELAY_SHORT_MS);
-	#endif
+	led_flash(LED_ORANGE,1,FLASH_DELAY_SHORT_MS);
 }
 
 ISR(WDT_vect) {
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
 
-	#ifdef TESTER
-		tester_flash(1,FLASH_DELAY_LONG_MS);
-	#endif
+	led_flash(LED_ORANGE,1,FLASH_DELAY_LONG_MS);
 
 	wdt_counter++;
 
 	if (hd_led_changed) {
 		hd_led_changed = false;
 		wdt_counter = 0;
-		setbit(PCMSK, PCINT4);
-		#ifdef TESTER
-			tester_flash(1,FLASH_DELAY_SHORT_MS);
-		#endif
+		//setbit(PCMSK, PCINT4);
+		led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);
 	}
 }
 
@@ -151,6 +161,8 @@ void reset_mobo() {
 	mobo_reset_on();
 	delay_ms(POWER_CYCLE_ON_MS);
 	mobo_reset_off();
+	
+	led_sos();
 }
 
 
@@ -176,15 +188,13 @@ int main(void)
 		unsigned char idle_input = idletime_input();
 	#endif
 	
+	led_startup();
+	
 	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
 	
-	tester_flash(1,FLASH_DELAY_LONG_MS);
-	
-	led_flash(1,FLASH_DELAY_LONG_MS,LED_RED);
-	led_flash(1,FLASH_DELAY_LONG_MS,LED_ORANGE);
-	led_flash(1,FLASH_DELAY_LONG_MS,LED_GREEN);
+	sei();
 	
     while (1) 
     {

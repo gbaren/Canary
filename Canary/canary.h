@@ -18,11 +18,6 @@
 #define mobo_reset_on()		(clrbit(PORTB,PB3))
 #define mobo_reset_off()	(setbit(PORTB,PB3))
 
-#define led_off()			clrbit(PORTB,PB0);clrbit(PORTB,PB1)
-#define led_green_on()		(setbit(PORTB,PB0))
-#define led_red_on()		(setbit(PORTB,PB1))
-#define led_orange_on()		led_green_on();led_red_on()
-
 #define WDT_TIMEOUT_16MS	0
 #define WDT_TIMEOUT_32MS	(bitval(WDP0))
 #define WDT_TIMEOUT_64MS	(bitval(WDP1))
