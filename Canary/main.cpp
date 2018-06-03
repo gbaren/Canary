@@ -45,8 +45,8 @@ void tester_flash(int times, int howlong) {
 }
 
 void led_off() {
-	clrbit(PORTB,PB0);
-	clrbit(PORTB,PB1);	
+	setbit(PORTB,PB0);
+	setbit(PORTB,PB1);	
 }
 
 void led_flash(int color, int times, int delay) {
@@ -54,14 +54,14 @@ void led_flash(int color, int times, int delay) {
 	for (int i=0; i<times; i++) {
 		switch (color) {
 			case LED_GREEN :
-				setbit(PORTB,PB0);
+				clrbit(PORTB,PB0);
 				break;
 			case LED_RED :
-				setbit(PORTB,PB1);
+				clrbit(PORTB,PB1);
 				break;
 			case LED_ORANGE :
-				setbit(PORTB,PB0);
-				setbit(PORTB,PB1);
+				clrbit(PORTB,PB0);
+				clrbit(PORTB,PB1);
 		}
 		delay_ms(delay);
 		led_off();
@@ -76,21 +76,19 @@ void led_sos() {
 }
 
 void led_startup() {
-	led_flash(LED_RED,1,FLASH_DELAY_SHORT_MS);
-	led_flash(LED_ORANGE,1,FLASH_DELAY_SHORT_MS);
-	led_flash(LED_GREEN,1,FLASH_DELAY_SHORT_MS);
+	led_flash(LED_RED,1,FLASH_DELAY_LONG_MS);
+	led_flash(LED_ORANGE,1,FLASH_DELAY_LONG_MS);
+	led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);
 }
 
 ISR(PCINT0_vect) {
 	//clrbit(PCMSK, PCINT4);
 	hd_led_changed = true;
-	led_flash(LED_ORANGE,1,FLASH_DELAY_SHORT_MS);
+	led_flash(LED_GREEN,1,FLASH_DELAY_SHORT_MS / 2);
 }
 
 ISR(WDT_vect) {
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
-
-	led_flash(LED_ORANGE,1,FLASH_DELAY_LONG_MS);
 
 	wdt_counter++;
 
@@ -98,7 +96,7 @@ ISR(WDT_vect) {
 		hd_led_changed = false;
 		wdt_counter = 0;
 		//setbit(PCMSK, PCINT4);
-		led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);
+		led_flash(LED_RED,1,FLASH_DELAY_LONG_MS);
 	}
 }
 
@@ -188,13 +186,12 @@ int main(void)
 		unsigned char idle_input = idletime_input();
 	#endif
 	
+	led_off();
 	led_startup();
-	
+
 	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
-	
-	sei();
 	
     while (1) 
     {
