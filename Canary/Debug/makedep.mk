@@ -6,5 +6,3 @@ Examples\wdt_example.c
 
 main.cpp
 
-test.cpp
-

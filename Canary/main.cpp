@@ -17,14 +17,20 @@
 	volatile float configured_delay;				// delay from switches scaled appropriately
 	volatile unsigned long wdt_counter = 0;			// counts number of times WDT got hit
 	volatile unsigned long main_loop_counter = 0;	// counts main loop iterations for testing
-	volatile float idle_multiplier = 300000;  // 5 minutes
+	volatile float idle_multiplier = 60000;			// 1 minute
+	volatile float timeout_progress = 0;			// percent of timeout elapsed (count of time slices)
 #else
-	bool hd_led_changed = true;
+	bool hd_led_changed = true;                              
 	float prescaler_freq_ms;
 	float configured_delay;
 	unsigned long wdt_counter = 0;
 	unsigned long main_loop_counter = 0;
-	float idle_multiplier = 300000;
+	#ifdef TESTER
+		float idle_multiplier = 60000;	// 1 min if testing
+	#else
+		float idle_multiplier = 300000; //5 min
+	#endif
+	float timeout_progress = 0;
 #endif
 
 void delay_ms(unsigned long ms)
@@ -35,18 +41,19 @@ void delay_ms(unsigned long ms)
 
 
 void tester_flash(int times, int howlong) {
-	
-	for(int i=0; i<times; i++) {
-		mobo_reset_on();
-		delay_ms(howlong);
-		mobo_reset_off();
-		delay_ms(FLASH_DELAY_SHORT_MS);
-	}
+	#ifdef TESTER
+		for(int i=0; i<times; i++) {
+			mobo_reset_on();
+			delay_ms(howlong);
+			mobo_reset_off();
+			delay_ms(FLASH_DELAY_SHORT_MS);
+		}
+	#endif
 }
 
 void led_off() {
-	setbit(PORTB,PB0);
-	setbit(PORTB,PB1);	
+	led_green_off();
+	led_red_off();	
 }
 
 void led_flash(int color, int times, int delay) {
@@ -54,40 +61,42 @@ void led_flash(int color, int times, int delay) {
 	for (int i=0; i<times; i++) {
 		switch (color) {
 			case LED_GREEN :
-				clrbit(PORTB,PB0);
+				led_green_on();
 				break;
 			case LED_RED :
-				clrbit(PORTB,PB1);
+				led_red_on();
 				break;
 			case LED_ORANGE :
-				clrbit(PORTB,PB0);
-				clrbit(PORTB,PB1);
+				led_green_on();
+				led_red_on();
 		}
 		delay_ms(delay);
 		led_off();
-		delay_ms(FLASH_DELAY_SHORT_MS);
+		delay_ms(delay);
 	}
 }
 
-void led_sos() {
-	led_flash(LED_RED,3,FLASH_DELAY_SHORT_MS);
-	led_flash(LED_RED,3,FLASH_DELAY_LONG_MS);
-	led_flash(LED_RED,3,FLASH_DELAY_SHORT_MS);
-}
 
 void led_startup() {
 	led_flash(LED_RED,1,FLASH_DELAY_LONG_MS);
 	led_flash(LED_ORANGE,1,FLASH_DELAY_LONG_MS);
 	led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);
-}
+	led_flash(LED_RED,1,FLASH_DELAY_LONG_MS);
+	led_flash(LED_ORANGE,1,FLASH_DELAY_LONG_MS);
+	led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);}
 
 ISR(PCINT0_vect) {
-	//clrbit(PCMSK, PCINT4);
+	cli();
 	hd_led_changed = true;
-	led_flash(LED_GREEN,1,FLASH_DELAY_SHORT_MS / 2);
+	#ifdef TESTER
+		led_flash(LED_RED,1,FLASH_DELAY_BLINK_MS);
+		tester_flash(1,FLASH_DELAY_SHORT_MS);
+	#endif
+	sei();
 }
 
 ISR(WDT_vect) {
+	cli();
 	setbit(WDTCR, WDIE);	// this keeps us from resetting the micro
 
 	wdt_counter++;
@@ -95,9 +104,12 @@ ISR(WDT_vect) {
 	if (hd_led_changed) {
 		hd_led_changed = false;
 		wdt_counter = 0;
-		//setbit(PCMSK, PCINT4);
-		led_flash(LED_RED,1,FLASH_DELAY_LONG_MS);
+		timeout_progress = 0;
+		led_flash(LED_GREEN,1,FLASH_DELAY_LONG_MS);
+	} else {
+		led_flash(LED_ORANGE,(int)timeout_progress,FLASH_DELAY_SHORT_MS);
 	}
+	sei();
 }
 
 
@@ -143,7 +155,7 @@ unsigned int setup_wdtcr() {
 
 }
 
-void go_to_sleep() {
+void wait_for_interrupt() {
 	MCUCR |= SLEEP_MODE_PWR_DOWN;	// set sleep mode
 	setbit(MCUCR,SE);				// sleep enable bit
 	sei();							// enable interrupts
@@ -152,6 +164,8 @@ void go_to_sleep() {
 }
 
 void reset_mobo() {
+	cli();
+	
 	mobo_reset_on();
 	delay_ms(POWER_CYCLE_HOLD_MS);
 	mobo_reset_off();
@@ -160,7 +174,9 @@ void reset_mobo() {
 	delay_ms(POWER_CYCLE_ON_MS);
 	mobo_reset_off();
 	
-	led_sos();
+	led_flash(LED_RED,5,FLASH_DELAY_SHORT_MS);
+	
+	sei();
 }
 
 
@@ -188,22 +204,24 @@ int main(void)
 	
 	led_off();
 	led_startup();
-
+	
 	clrbit(ADCSRA,ADEN);	// disable ADC (default is enabled in all sleep modes)
 	setbit(GIMSK, PCIE);	// enable pin change interrupts
 	setbit(PCMSK, PCINT4);	// setup to interrupt on pin change of PB4
 	
     while (1) 
     {
+		cli();
 		idle_input = idletime_input(); // can change switches while device running
 		configured_delay = ((float)idle_input * idle_multiplier) / prescaler_freq_ms;
+		timeout_progress = (wdt_counter / configured_delay) / 0.2; // counts 20% slices
 
-		go_to_sleep();
+		wait_for_interrupt();
 				
 		if (wdt_counter	> configured_delay) {
-			cli();
-			reset_mobo();
+			timeout_progress = 0;
 			wdt_counter = 0;
+			reset_mobo();
 		}
 	}
 }

@@ -35,6 +35,12 @@
 
 #define FLASH_DELAY_LONG_MS		500
 #define FLASH_DELAY_SHORT_MS	200
+#define FLASH_DELAY_BLINK_MS	100
+
+#define led_green_on()	(clrbit(PORTB,PB0))
+#define led_green_off()	(setbit(PORTB,PB0))
+#define led_red_on()	(clrbit(PORTB,PB1))
+#define led_red_off()	(setbit(PORTB,PB1))
 
 #define LED_GREEN	1
 #define LED_RED		2
