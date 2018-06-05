@@ -69,6 +69,7 @@ void led_flash(int color, int times, int delay) {
 			case LED_ORANGE :
 				led_green_on();
 				led_red_on();
+				break;
 		}
 		delay_ms(delay);
 		led_off();
