@@ -1,5 +1,5 @@
 ﻿//#define SIM 
-#define TESTER
+//#define TESTER
 
 #define F_CPU 1000000UL
 
