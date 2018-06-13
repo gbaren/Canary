@@ -38,5 +38,16 @@
 #define LED_RED		2
 #define LED_ORANGE	3
 
+#define STATE_START			1
+#define STATE_WAIT			2
+#define STATE_SHUTDOWN		3
+#define STATE_BOOT			4
+#define STATE_HDLED_CHANGED	5
+
+#define INTERRUPT_NONE		0
+#define INTERRUPT_PIN4		1
+#define INTERRUPT_WDT		2
+
+#define IDLE_MULTIPLIER		300000
 
 #endif /* CANARY_H_ */
